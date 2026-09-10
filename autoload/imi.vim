@@ -1,3 +1,30 @@
+function! s:error(message) abort
+  echohl ErrorMsg
+  echomsg 'Imi: ' . a:message
+  echohl None
+endfunction
+
+function! s:fzf_available(require_vim_integration) abort
+  if !executable('fzf')
+    call s:error('fzf executable not found. Install fzf to use Imi.')
+    return 0
+  endif
+
+  if !exists('*fzf#run') && empty(globpath(&runtimepath, 'autoload/fzf.vim'))
+    call s:error('fzf core Vim plugin not found. Add fzf''s Vim runtime (which provides fzf#run) to runtimepath.')
+    return 0
+  endif
+
+  if a:require_vim_integration
+        \ && !exists('*fzf#vim#grep')
+        \ && empty(globpath(&runtimepath, 'autoload/fzf/vim.vim'))
+    call s:error('fzf.vim integration not found. Install the complete fzf.vim plugin.')
+    return 0
+  endif
+
+  return 1
+endfunction
+
 function! imi#preview_cmd() abort
   if executable('bat')
     return 'bat --style=numbers --color=always --line-range :500 {}'
@@ -27,6 +54,10 @@ function! imi#is_git_work_tree() abort
 endfunction
 
 function! imi#files_smart() abort
+  if !s:fzf_available(0)
+    return
+  endif
+
   let cwd = getcwd()
 
   if imi#is_git_work_tree()
@@ -54,12 +85,22 @@ function! imi#files_smart() abort
           \ 'sink': 'e',
           \ 'options': '--multi --preview "' . imi#preview_cmd() . '"'
           \ })
+  elseif executable('find')
+    call fzf#run({
+          \ 'source': 'find ' . shellescape(cwd) . ' -type f ! -path ' . shellescape('*/.git/*'),
+          \ 'sink': 'e',
+          \ 'options': '--multi --preview "' . imi#preview_cmd() . '"'
+          \ })
   else
-    echo 'No suitable file search tool found: fd, locate, or rg'
+    call s:error('no file search backend found. Install fd, locate, ripgrep, or find.')
   endif
 endfunction
 
 function! imi#files_home() abort
+  if !s:fzf_available(0)
+    return
+  endif
+
   let home = expand('$HOME')
 
   if executable('fd')
@@ -81,12 +122,27 @@ function! imi#files_home() abort
           \ 'sink': 'e',
           \ 'options': '--multi --preview "' . imi#preview_cmd() . '"'
           \ })
+  elseif executable('find')
+    call fzf#run({
+          \ 'source': 'find ' . shellescape(home) . ' -type f ! -path ' . shellescape('*/.git/*'),
+          \ 'sink': 'e',
+          \ 'options': '--multi --preview "' . imi#preview_cmd() . '"'
+          \ })
   else
-    echo 'No suitable file search tool found: fd, locate, or rg'
+    call s:error('no file search backend found. Install fd, locate, ripgrep, or find.')
   endif
 endfunction
 
 function! imi#grep(query) abort
+  if !executable('rg')
+    call s:error('ripgrep (rg) is required for :ImiGrep.')
+    return
+  endif
+
+  if !s:fzf_available(1)
+    return
+  endif
+
   call fzf#vim#grep(
         \ 'rg --column --line-number --no-heading --color=always --smart-case --hidden --glob "!.git/*" ' . shellescape(a:query),
         \ 1,

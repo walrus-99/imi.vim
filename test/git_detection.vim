@@ -6,10 +6,19 @@ execute 'set runtimepath^=' . fnameescape(s:repo_root . '/test/fixtures')
 
 let s:original_cwd = getcwd()
 let s:original_path = $PATH
+let s:git_path = exepath('git')
 let s:work_dir = tempname()
 call mkdir(s:work_dir, 'p')
 
 try
+  let s:initial_bin = s:work_dir . '/initial-bin'
+  call mkdir(s:initial_bin)
+  call writefile(['#!/bin/sh', 'exec ' . shellescape(s:git_path) . ' "$@"'], s:initial_bin . '/git')
+  call writefile(['#!/bin/sh', 'exit 0'], s:initial_bin . '/fzf')
+  call setfperm(s:initial_bin . '/git', 'rwxr-xr-x')
+  call setfperm(s:initial_bin . '/fzf', 'rwxr-xr-x')
+  let $PATH = s:initial_bin
+
   execute 'lcd ' . fnameescape(s:work_dir)
   call assert_false(imi#is_git_work_tree(), 'A plain directory must not be detected as a Git work tree')
 
@@ -33,8 +42,10 @@ try
   call mkdir(s:bin_dir)
   call writefile(['#!/bin/sh', 'exit 128'], s:bin_dir . '/git')
   call writefile(['#!/bin/sh', 'exit 0'], s:bin_dir . '/fd')
+  call writefile(['#!/bin/sh', 'exit 0'], s:bin_dir . '/fzf')
   call setfperm(s:bin_dir . '/git', 'rwxr-xr-x')
   call setfperm(s:bin_dir . '/fd', 'rwxr-xr-x')
+  call setfperm(s:bin_dir . '/fzf', 'rwxr-xr-x')
   let $PATH = s:bin_dir
 
   unlet! g:imi_test_fzf_spec

@@ -4,14 +4,15 @@ let s:repo_root = fnamemodify(expand('<sfile>'), ':p:h:h')
 execute 'set runtimepath^=' . fnameescape(s:repo_root)
 execute 'set runtimepath^=' . fnameescape(s:repo_root . '/test/fixtures')
 
-function! s:add_executable(directory, name) abort
+function! s:add_executable(directory, name, lines) abort
   let path = a:directory . '/' . a:name
-  call writefile(['#!/bin/sh', 'exit 0'], path)
+  call writefile(['#!/bin/sh'] + a:lines, path)
   call setfperm(path, 'rwxr-xr-x')
 endfunction
 
 let s:original_cwd = getcwd()
 let s:original_path = $PATH
+let s:git_path = exepath('git')
 let s:work_dir = tempname() . " root space'quote"
 let s:project_dir = s:work_dir . '/project'
 let s:nested_dir = s:project_dir . '/nested'
@@ -22,6 +23,13 @@ call mkdir(s:plain_dir, 'p')
 try
   call system('git -C ' . shellescape(s:project_dir) . ' init --quiet')
   call assert_equal(0, v:shell_error, 'The test Git repository could not be initialized')
+
+  let s:tools_bin = s:work_dir . '/tools-bin'
+  call mkdir(s:tools_bin)
+  call s:add_executable(s:tools_bin, 'git', ['exec ' . shellescape(s:git_path) . ' "$@"'])
+  call s:add_executable(s:tools_bin, 'fzf', ['exit 0'])
+  call s:add_executable(s:tools_bin, 'rg', ['exit 0'])
+  let $PATH = s:tools_bin
 
   execute 'lcd ' . fnameescape(s:nested_dir)
   call assert_equal(s:project_dir, imi#git_root(), 'Git root detection must work from a nested directory')
@@ -52,7 +60,7 @@ try
 
   let s:bat_bin = s:work_dir . '/bat-bin'
   call mkdir(s:bat_bin)
-  call s:add_executable(s:bat_bin, 'bat')
+  call s:add_executable(s:bat_bin, 'bat', ['exit 0'])
   let $PATH = s:bat_bin
   call assert_equal('bat --style=numbers --color=always --line-range :500 {}', imi#preview_cmd(),
         \ 'File previews must use bat when available')
