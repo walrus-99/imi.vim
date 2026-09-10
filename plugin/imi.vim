@@ -13,7 +13,3 @@ if get(g:, 'imi_default_mappings', 1)
   nnoremap <silent> <leader>h :ImiHome<CR>
   nnoremap <leader>f :ImiGrep<Space>
 endif
-
-
-
-
